@@ -46,7 +46,7 @@
             transform: translate(-50%, -50%);
             color: #fff;
             text-align: center;
-            font-size: 18px;
+            font-size: 16px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             pointer-events: none;
         }
@@ -72,17 +72,23 @@
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="gameInfo">생존 시간: <span id="survivalTime">0</span>초 | 난이도: <span id="difficultyLevel">1</span></div>
+        <div id="gameInfo">
+            생존 시간: <span id="survivalTime">0</span>초 | 
+            난이도: <span id="difficultyLevel">1</span> | 
+            점수: <span id="score">0</span>
+        </div>
         <div id="instructions">
-            <div>UFO 운석 피하기 게임</div>
-            <div style="margin-top: 20px;">스페이스바를 눌러 게임 시작</div>
+            <div>UFO 운석 파괴 게임</div>
+            <div style="margin-top: 15px;">ENTER 키를 눌러 게임 시작</div>
             <div style="margin-top: 10px;">← → 키로 UFO 조작</div>
-            <div style="margin-top: 10px;">모바일: 좌우 터치로 조작</div>
+            <div style="margin-top: 10px;">스페이스바로 미사일 발사</div>
+            <div style="margin-top: 10px;">모바일: 좌우 터치로 조작, 화면 터치로 미사일 발사</div>
         </div>
         <div id="gameOver" class="hidden">
             <div>GAME OVER!</div>
             <div style="margin-top: 20px;">생존 시간: <span id="finalTime">0</span>초</div>
-            <div style="margin-top: 20px;">스페이스바로 재시작</div>
+            <div style="margin-top: 10px;">최종 점수: <span id="finalScore">0</span></div>
+            <div style="margin-top: 20px;">ENTER 키로 재시작</div>
             <div style="margin-top: 10px;">모바일: 터치로 재시작</div>
         </div>
     </div>
@@ -96,11 +102,14 @@
         const survivalTimeSpan = document.getElementById('survivalTime');
         const finalTimeSpan = document.getElementById('finalTime');
         const difficultyLevelSpan = document.getElementById('difficultyLevel');
+        const scoreSpan = document.getElementById('score');
+        const finalScoreSpan = document.getElementById('finalScore');
 
         let gameState = 'waiting'; // waiting, playing, gameOver
         let gameStartTime = 0;
         let lastTime = 0;
         let survivalTime = 0;
+        let score = 0;
 
         // UFO 도트맵 (반원형)
         const ufoPixelMap = [
@@ -128,6 +137,12 @@
             height: 30,
             speed: 5
         };
+
+        // 미사일 관련 변수
+        const missiles = [];
+        const missileSpeed = 8;
+        let lastMissileTime = 0;
+        const missileDelay = 200; // 미사일 발사 간격 (밀리초)
 
         // 운석 관련 변수
         const meteors = [];
@@ -169,6 +184,14 @@
                     }
                 }
             }
+        }
+
+        // 미사일 그리기 함수
+        function drawMissile(missile) {
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(missile.x, missile.y, 4, 12);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(missile.x + 1, missile.y, 2, 8);
         }
 
         // 운석 그리기 함수
@@ -219,6 +242,16 @@
             }
         }
 
+        // 폭발 이펙트 그리기
+        function drawExplosion(x, y, size) {
+            const colors = ['#ffff00', '#ff8800', '#ff4400', '#ff0000'];
+            for (let i = 0; i < 4; i++) {
+                ctx.fillStyle = colors[i];
+                const explosionSize = size - i * 2;
+                ctx.fillRect(x - explosionSize/2, y - explosionSize/2, explosionSize, explosionSize);
+            }
+        }
+
         // 별 그리기
         function drawStars() {
             ctx.fillStyle = '#ffffff';
@@ -236,6 +269,31 @@
                     star.x = Math.random() * canvas.width;
                 }
             });
+        }
+
+        // 미사일 발사
+        function fireMissile() {
+            const currentTime = performance.now();
+            if (currentTime - lastMissileTime > missileDelay) {
+                missiles.push({
+                    x: ufo.x + ufo.width / 2 - 2,
+                    y: ufo.y,
+                    width: 4,
+                    height: 12
+                });
+                lastMissileTime = currentTime;
+            }
+        }
+
+        // 미사일 업데이트
+        function updateMissiles() {
+            for (let i = missiles.length - 1; i >= 0; i--) {
+                missiles[i].y -= missileSpeed;
+                
+                if (missiles[i].y < -20) {
+                    missiles.splice(i, 1);
+                }
+            }
         }
 
         // 난이도 업데이트 함수
@@ -278,8 +336,34 @@
             }
         }
 
-        // 충돌 검사
-        function checkCollisions() {
+        // 미사일과 운석 충돌 검사
+        function checkMissileCollisions() {
+            for (let i = missiles.length - 1; i >= 0; i--) {
+                for (let j = meteors.length - 1; j >= 0; j--) {
+                    if (missiles[i].x < meteors[j].x + meteors[j].width &&
+                        missiles[i].x + missiles[i].width > meteors[j].x &&
+                        missiles[i].y < meteors[j].y + meteors[j].height &&
+                        missiles[i].y + missiles[i].height > meteors[j].y) {
+                        
+                        // 폭발 이펙트 (간단한 플래시)
+                        const explosionX = meteors[j].x + meteors[j].width / 2;
+                        const explosionY = meteors[j].y + meteors[j].height / 2;
+                        
+                        // 점수 추가 (큰 운석은 더 많은 점수)
+                        score += meteors[j].isBig ? 20 : 10;
+                        scoreSpan.textContent = score;
+                        
+                        // 미사일과 운석 제거
+                        missiles.splice(i, 1);
+                        meteors.splice(j, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // UFO와 운석 충돌 검사
+        function checkUFOCollisions() {
             for (let meteor of meteors) {
                 if (meteor.x < ufo.x + ufo.width &&
                     meteor.x + meteor.width > ufo.x &&
@@ -304,6 +388,11 @@
                 if (keys['ArrowRight'] && ufo.x < canvas.width - ufo.width) {
                     ufo.x += ufo.speed;
                 }
+                
+                // 미사일 발사
+                if (keys['Space']) {
+                    fireMissile();
+                }
             }
 
             // 화면 클리어
@@ -325,18 +414,27 @@
                 // 난이도 업데이트
                 updateDifficulty();
 
+                // 미사일 업데이트
+                updateMissiles();
+
                 // 운석 생성 및 업데이트
                 spawnMeteor();
                 updateMeteors();
 
                 // 충돌 검사
-                if (checkCollisions()) {
+                checkMissileCollisions();
+                
+                if (checkUFOCollisions()) {
                     gameState = 'gameOver';
                     finalTimeSpan.textContent = survivalTime;
+                    finalScoreSpan.textContent = score;
                     gameOverDiv.classList.remove('hidden');
                     gameInfo.classList.add('hidden');
                 }
 
+                // 미사일 그리기
+                missiles.forEach(drawMissile);
+                
                 // 운석 그리기
                 meteors.forEach(drawMeteor);
             }
@@ -352,7 +450,10 @@
             gameState = 'playing';
             gameStartTime = performance.now();
             meteors.length = 0;
+            missiles.length = 0;
             survivalTime = 0;
+            score = 0;
+            scoreSpan.textContent = score;
             // 난이도 초기화
             meteorSpeed = baseMeteorSpeed;
             meteorSpawnRate = baseSpawnRate;
@@ -366,11 +467,14 @@
         function resetGame() {
             gameState = 'waiting';
             meteors.length = 0;
+            missiles.length = 0;
             survivalTime = 0;
+            score = 0;
             // 난이도 초기화
             meteorSpeed = baseMeteorSpeed;
             meteorSpawnRate = baseSpawnRate;
             survivalTimeSpan.textContent = '0';
+            scoreSpan.textContent = '0';
             instructions.classList.remove('hidden');
             gameOverDiv.classList.add('hidden');
             gameInfo.classList.add('hidden');
@@ -383,7 +487,7 @@
         document.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             
-            if (e.code === 'Space') {
+            if (e.code === 'Enter') {
                 e.preventDefault();
                 if (gameState === 'waiting' || gameState === 'gameOver') {
                     startGame();
@@ -397,13 +501,25 @@
 
         // 터치 이벤트 (모바일)
         let touchStartX = 0;
+        let touchStartTime = 0;
         
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             touchStartX = e.touches[0].clientX;
+            touchStartTime = performance.now();
             
             if (gameState === 'waiting' || gameState === 'gameOver') {
                 startGame();
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touchDuration = performance.now() - touchStartTime;
+            
+            // 짧은 터치는 미사일 발사로 처리
+            if (gameState === 'playing' && touchDuration < 200) {
+                fireMissile();
             }
         });
 
