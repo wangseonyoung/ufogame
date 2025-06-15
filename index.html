@@ -475,6 +475,35 @@
             return false;
         }
 
+        // UFO와 별똥별 충돌 검사
+        function checkUFOShootingStarCollisions() {
+            const ufoCollisionBox = {
+                x: ufo.x,
+                y: ufo.y,
+                width: ufo.width,
+                height: ufo.height
+            };
+
+            for (let star of shootingStars) {
+                // 별똥별의 머리 부분을 중심으로 10x10 픽셀의 충돌 영역 설정
+                const starCollisionBox = {
+                    x: star.x - 5, // 중심점을 기준으로 x 위치 조정
+                    y: star.y - 5, // 중심점을 기준으로 y 위치 조정
+                    width: 10,
+                    height: 10
+                };
+
+                // 충돌 검사
+                if (ufoCollisionBox.x < starCollisionBox.x + starCollisionBox.width &&
+                    ufoCollisionBox.x + ufoCollisionBox.width > starCollisionBox.x &&
+                    ufoCollisionBox.y < starCollisionBox.y + starCollisionBox.height &&
+                    ufoCollisionBox.y + ufoCollisionBox.height > starCollisionBox.y) {
+                    return true; // 충돌 발생
+                }
+            }
+            return false; // 충돌 없음
+        }
+
         // 게임 루프
         function gameLoop(currentTime) {
             const deltaTime = currentTime - lastTime;
@@ -532,6 +561,15 @@
                 checkMissileCollisions();
                 
                 if (checkUFOCollisions()) {
+                    gameState = 'gameOver';
+                    finalTimeSpan.textContent = survivalTime;
+                    finalScoreSpan.textContent = score;
+                    gameOverDiv.classList.remove('hidden');
+                    gameInfo.classList.add('hidden');
+                }
+
+                // UFO와 별똥별 충돌 검사
+                if (checkUFOShootingStarCollisions()) {
                     gameState = 'gameOver';
                     finalTimeSpan.textContent = survivalTime;
                     finalScoreSpan.textContent = score;
