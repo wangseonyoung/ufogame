@@ -129,6 +129,19 @@
             3: '#ffff00'
         };
 
+        const alienPixelMap = [
+            [0,1,0],
+            [1,2,1],
+            [1,1,1],
+            [1,0,1]
+        ];
+
+        const alienColors = {
+            0: 'transparent',
+            1: '#32CD32',
+            2: '#FF0000'
+        };
+
         // 게임 오브젝트
         const ufo = {
             x: canvas.width / 2 - 30,
@@ -146,6 +159,7 @@
 
         // 운석 관련 변수
         const meteors = [];
+        const aliens = []; // Added aliens array
         let meteorSpeed = 2;
         let meteorSpawnRate = 0.015;
         const baseMeteorSpeed = 2;
@@ -189,6 +203,30 @@
                     const colorKey = ufoPixelMap[row][col];
                     const color = ufoColors[colorKey];
                     
+                    if (color !== 'transparent') {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(
+                            startX + col * pixelSize,
+                            startY + row * pixelSize,
+                            pixelSize,
+                            pixelSize
+                        );
+                    }
+                }
+            }
+        }
+
+        // Alien drawing function
+        function drawAlien(alien) {
+            const pixelSize = 5; // Consistent with UFO and spawnAlien calculations
+            const startX = alien.x;
+            const startY = alien.y;
+
+            for (let row = 0; row < alienPixelMap.length; row++) {
+                for (let col = 0; col < alienPixelMap[row].length; col++) {
+                    const colorKey = alienPixelMap[row][col];
+                    const color = alienColors[colorKey];
+
                     if (color !== 'transparent') {
                         ctx.fillStyle = color;
                         ctx.fillRect(
@@ -375,6 +413,31 @@
             }
         }
 
+        // Alien spawn function
+        function spawnAlien() {
+            const pixelSize = 5; // Assuming a similar pixelSize as UFO for now
+            const alienWidth = alienPixelMap[0].length * pixelSize;
+            const alienHeight = alienPixelMap.length * pixelSize;
+            aliens.push({
+                x: Math.random() * (canvas.width - alienWidth),
+                y: -alienHeight, // Start off-screen at the top
+                width: alienWidth,
+                height: alienHeight,
+                speed: 1.5 // Add this line
+            });
+        }
+
+        // Alien update function
+        function updateAliens() {
+            for (let i = aliens.length - 1; i >= 0; i--) {
+                aliens[i].y += aliens[i].speed; // Assuming speed is part of the alien object
+
+                if (aliens[i].y > canvas.height) {
+                    aliens.splice(i, 1);
+                }
+            }
+        }
+
         // 미사일 발사
         function fireMissile() {
             const currentTime = performance.now();
@@ -456,7 +519,26 @@
                         // 미사일과 운석 제거
                         missiles.splice(i, 1);
                         meteors.splice(j, 1);
-                        break;
+                        break; // Exit meteor loop for this missile
+                    }
+                }
+
+                // Check for collision with aliens if missile still exists
+                if (!missiles[i]) continue; // Missile was destroyed by a meteor
+
+                for (let k = aliens.length - 1; k >= 0; k--) {
+                    if (missiles[i].x < aliens[k].x + aliens[k].width &&
+                        missiles[i].x + missiles[i].width > aliens[k].x &&
+                        missiles[i].y < aliens[k].y + aliens[k].height &&
+                        missiles[i].y + missiles[i].height > aliens[k].y) {
+
+                        // Collision detected with alien
+                        score += 50; // Add 50 points for hitting an alien
+                        scoreSpan.textContent = score;
+
+                        aliens.splice(k, 1);      // Remove the alien
+                        missiles.splice(i, 1);    // Remove the missile
+                        break; // Exit alien loop for this missile
                     }
                 }
             }
@@ -469,11 +551,22 @@
                     meteor.x + meteor.width > ufo.x &&
                     meteor.y < ufo.y + ufo.height &&
                     meteor.y + meteor.height > ufo.y) {
-                    return true;
-                }
+                    return true; // Collision with meteor
             }
-            return false;
         }
+
+        // New alien collision check
+        for (let alien of aliens) { // Iterate through the aliens array
+            if (alien.x < ufo.x + ufo.width &&
+                alien.x + alien.width > ufo.x &&
+                alien.y < ufo.y + ufo.height &&
+                alien.y + alien.height > ufo.y) {
+                return true; // Collision with alien
+            }
+        }
+
+        return false; // No collision
+    }
 
         // UFO와 별똥별 충돌 검사
         function checkUFOShootingStarCollisions() {
@@ -546,6 +639,11 @@
                 // 난이도 업데이트
                 updateDifficulty();
 
+                // Spawn aliens from level 5
+                if (currentDifficultyLevel >= 5 && Math.random() < 0.005) { // Adjust 0.005 later for balance
+                    spawnAlien();
+                }
+
                 // 별똥별 생성 및 업데이트 (5단계부터)
                 spawnShootingStar();
                 updateShootingStars();
@@ -556,6 +654,9 @@
                 // 운석 생성 및 업데이트
                 spawnMeteor();
                 updateMeteors();
+
+                // Alien 업데이트
+                updateAliens();
 
                 // 충돌 검사
                 checkMissileCollisions();
@@ -585,6 +686,9 @@
                 
                 // 운석 그리기
                 meteors.forEach(drawMeteor);
+
+                // Draw aliens
+                aliens.forEach(drawAlien);
             }
 
             // UFO 그리기
@@ -600,6 +704,7 @@
             meteors.length = 0;
             missiles.length = 0;
             shootingStars.length = 0;
+            aliens.length = 0; // Clear aliens array
             survivalTime = 0;
             score = 0;
             twinkleTime = 0;
@@ -619,6 +724,7 @@
             meteors.length = 0;
             missiles.length = 0;
             shootingStars.length = 0;
+            aliens.length = 0; // Clear aliens array
             survivalTime = 0;
             score = 0;
             twinkleTime = 0;
